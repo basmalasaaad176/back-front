@@ -1,0 +1,120 @@
+const Hotel = require("../model/hotel");
+const asyncWrapper = require("../middleware/asyncwrapper");
+const appError = require("../utils/error");
+const textstatus = require("../utils/statustext");
+const mongoose = require('mongoose');
+
+
+// Get all rooms of a specific hotel
+const getAllRooms = asyncWrapper(async (req, res, next) => {
+  const { hotelId } = req.params;
+
+  const hotel = await Hotel.findById(hotelId);
+  if (!hotel) {
+    return next(appError.create("Hotel not found", 404, textstatus.FAIL));
+  }
+
+  res.status(200).json({
+    status: textstatus.SUCCESS,
+    data: { rooms: hotel.rooms },
+  });
+});
+
+// Get a single room by its ID for a specific hotel
+const getRoomById = asyncWrapper(async (req, res, next) => {
+  const { hotelId, roomId } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(hotelId)) {
+    return res.status(400).send('Invalid hotel ID');
+  }
+
+  const hotel = await Hotel.findOne({ _id: hotelId, "rooms._id": roomId }, { "rooms.$": 1 });
+  if (!hotel || !hotel.rooms.length) {
+    return next(appError.create("Room not found", 404, textstatus.FAIL));
+  }
+
+  res.status(200).json({
+    status: textstatus.SUCCESS,
+    data: { room: hotel.rooms[0] },
+  });
+});
+
+// Add a new room to a specific hotel
+const addRoom = asyncWrapper(async (req, res, next) => {
+  const { hotelId } = req.params;
+  const newRoomData = req.body;
+
+
+  if (!mongoose.Types.ObjectId.isValid(hotelId)) {
+    return res.status(400).json({ error: `Invalid hotelId format: ${hotelId}` });
+  }
+
+  try {
+    const hotel = await Hotel.findById(hotelId);
+    if (!hotel) {
+      return next(appError.create("Hotel not found", 404, textstatus.FAIL));
+    }
+
+    // Ensure room has a valid ObjectId for `_id`
+    newRoomData._id = new mongoose.Types.ObjectId();
+
+    hotel.rooms.push(newRoomData);
+    await hotel.save();
+
+    res.status(201).json({
+      status: textstatus.SUCCESS,
+      message: "Room added successfully",
+      data: { room: hotel.rooms[hotel.rooms.length - 1] },
+    });
+  } catch (error) {
+    console.error("Error in addRoom:", error.message);
+    return next(appError.create(error.message, 500, textstatus.FAIL));
+  }
+});
+
+
+// Update an existing room of a specific hotel
+const updateRoom = asyncWrapper(async (req, res, next) => {
+  const { hotelId, roomId } = req.params;
+  const updatedData = req.body;
+
+  const hotel = await Hotel.findOneAndUpdate(
+    { _id: hotelId, "rooms._id": roomId },
+    { $set: { "rooms.$": updatedData } },
+    { new: true, runValidators: true }
+  );
+
+  if (!hotel) {
+    return next(appError.create("Room not found", 404, textstatus.FAIL));
+  }
+
+  res.status(200).json({
+    status: textstatus.SUCCESS,
+    message: "Room updated successfully",
+    data: { room: hotel.rooms.find((room) => room._id.toString() === roomId) },
+  });
+});
+
+// Delete a room from a specific hotel
+const deleteRoom = asyncWrapper(async (req, res, next) => {
+  const { hotelId, roomId } = req.params;
+
+  const hotel = await Hotel.findById(hotelId);
+  if (!hotel) {
+    return next(appError.create("Hotel not found", 404, textstatus.FAIL));
+  }
+
+  const roomIndex = hotel.rooms.findIndex((room) => room._id.toString() === roomId);
+  if (roomIndex === -1) {
+    return next(appError.create("Room not found", 404, textstatus.FAIL));
+  }
+
+  hotel.rooms.splice(roomIndex, 1);
+  await hotel.save();
+
+  res.status(200).json({
+    status: textstatus.SUCCESS,
+    message: "Room deleted successfully",
+  });
+});
+
+module.exports = { getAllRooms, getRoomById, addRoom, updateRoom, deleteRoom }; 

@@ -1,0 +1,17 @@
+const express = require("express");
+const router = express.Router();
+const {
+  getAllRooms,
+  getRoomById,
+  addRoom,
+  updateRoom,
+  deleteRoom
+} = require("../controller/managerservice");
+
+router.get("/:hotelId", getAllRooms);
+router.get("/:hotelId/id/:roomId", getRoomById);
+router.post("/:hotelId/add",addRoom);
+router.put("/:hotelId/update/:roomId", updateRoom);
+router.delete("/:hotelId/delete/:roomId", deleteRoom);
+
+module.exports = router;
